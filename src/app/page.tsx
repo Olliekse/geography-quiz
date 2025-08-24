@@ -1,103 +1,194 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  // State management for the story generation workflow
+  const [storyTitle, setStoryTitle] = useState("");
+  const [storyBody, setStoryBody] = useState("");
+  const [loading, setLoading] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  // Handles the initial form submission to generate a story title
+  const onSubmitHandler = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const formData = new FormData(e.currentTarget);
+    const subject = formData.get("subject") as string;
+
+    try {
+      // Make a POST request to our API endpoint to generate a story title
+      const response = await fetch("/api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("AI Response:", result);
+
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      // Update the UI with the generated story title and show a placeholder message
+      setStoryTitle(result.data);
+      setStoryBody(
+        "Story title generated! Click the button above to get the full story."
+      );
+    } catch (error) {
+      console.error("Error:", error);
+      setStoryBody("Sorry, there was an error generating your story title.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initiates the story streaming process after a title has been generated
+  const startStoryStream = async () => {
+    if (!storyTitle) return;
+
+    setLoading(true);
+    setStoryBody(""); // Clear previous content to show streaming effect
+
+    try {
+      // Make a second API call to get the actual story content
+      const response = await fetch("/api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storyTitle }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Check if the response is a stream (text/event-stream)
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("text/event-stream")) {
+        // Handle streaming response
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error("No response body reader available");
+        }
+
+        const decoder = new TextDecoder();
+        let accumulatedText = "";
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) {
+              break;
+            }
+
+            // Decode the chunk and add to accumulated text
+            const chunk = decoder.decode(value, { stream: true });
+            accumulatedText += chunk;
+
+            // Update the UI with the accumulated text for a streaming effect
+            setStoryBody(accumulatedText);
+          }
+        } catch (streamError) {
+          console.error("Streaming error:", streamError);
+          if (accumulatedText) {
+            // If we got some content, show what we have
+            setStoryBody(
+              accumulatedText + "\n\n[Story generation was interrupted]"
+            );
+          } else {
+            setStoryBody(
+              "Sorry, there was an error while streaming your story."
+            );
+          }
+        } finally {
+          reader.releaseLock();
+        }
+      } else {
+        // Fallback to JSON response handling
+        const result = await response.json();
+        setStoryBody(result.data);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setStoryBody("Sorry, there was an error getting your story.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto p-6">
+      <h1 className="text-3xl font-bold mb-2">📖 The Story Creator</h1>
+      <p className="text-gray-600 mb-6">
+        This app uses an AI Model to generate a story for children.
+      </p>
+
+      {/* Story generation form - allows users to select a subject and trigger AI generation */}
+      <form onSubmit={onSubmitHandler} className="mb-6">
+        Main subject of the story:
+        <select className="ml-5" name="subject">
+          <option value="squirrels">🐿 Squirrels</option>
+          <option value="dragons">🐉 Dragons</option>
+          <option value="aliens">👽 Aliens</option>
+        </select>
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-blue-500 ml-10 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? "🤖 Generating..." : "🤖 Ask AI Model"}
+        </button>
+      </form>
+
+      {/* Story display section - only shows after a title has been generated */}
+      {storyTitle && (
+        <div className="bg-gray-50 p-4 rounded-md">
+          <h2 className="text-xl font-semibold mb-3">Generated Story Title:</h2>
+          <p className="text-lg mb-4 font-medium">{storyTitle}</p>
+          <button
+            onClick={startStoryStream}
+            disabled={loading}
+            className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed mb-4"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            {loading ? "🤖 Getting Story..." : "📖 Get the Full Story"}
+          </button>
+
+          {/* Story content with streaming indicator */}
+          <div className="mt-4">
+            {loading && storyBody === "" && (
+              <div className="flex items-center text-gray-600 mb-2">
+                <div className="animate-pulse mr-2">⏳</div>
+                <span>Generating your story...</span>
+              </div>
+            )}
+            {storyBody && (
+              <div className="bg-white p-4 rounded border">
+                <h3 className="font-semibold mb-2">Your Story:</h3>
+                <p className="whitespace-pre-wrap leading-relaxed">
+                  {storyBody}
+                </p>
+                {loading && (
+                  <span className="inline-block ml-2 animate-pulse text-green-500">
+                    |
+                  </span>
+                )}
+              </div>
+            )}
+            {!loading && storyBody === "" && storyTitle && (
+              <div className="text-gray-500 italic">
+                Click &quot;Get the Full Story&quot; to start generating your
+                story...
+              </div>
+            )}
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      )}
     </div>
   );
 }
