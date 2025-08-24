@@ -2,6 +2,10 @@
 
 This is my first attempt at building an AI-powered application. I built a **Next.js app** that generates creative stories for children using **OpenRouter** (which gives access to AI models like Claude and GPT-4). It streams the stories in real-time, so you can watch the AI write them word by word.
 
+## Live Demo 🚀
+
+**[Try it out live](https://story-maker-ollie.vercel.app/)**
+
 ## What I Built
 
 - **AI Story Titles**: The AI creates unique story titles based on what you pick (squirrels, dragons, or aliens)
