@@ -4,7 +4,7 @@ This is my first attempt at building an AI-powered application. I built a **Next
 
 ## Live Demo 🚀
 
-**[Try it out live](https://story-maker-ollie.vercel.app/)**
+**[Try it out live](https://story-creator-theta.vercel.app)**
 
 ## What I Built
 
