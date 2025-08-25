@@ -4,7 +4,7 @@ This is my first attempt at building an AI-powered application. I built a **Next
 
 ## Live Demo 🚀
 
-**[Try it out live](https://geography-quiz-ollie.vercel.app/)**
+**[Try it out live](https://geography-quiz-seven.vercel.app/)**
 
 ## What I Built
 
